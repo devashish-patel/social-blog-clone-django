@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ObjectDoesNotExist
 from restless.exceptions import NotFound, BadRequest
 from restless.preparers import Preparer
+from apps.api.utils import routes
 
 from apps.blog.models import Post
 from .base import Resource
@@ -25,7 +26,8 @@ class PostCreatePreparer(Preparer):
             'posted_on': post.posted_on,
             'comments': [comment_preparer.prepare(comment)
                          for comment in post.comments.all()],
-            'published': post.published
+            'published': post.published,
+            'group': post.group.name
         }
 
 
@@ -39,9 +41,10 @@ class PostUpdatePreparer(PostCreatePreparer):
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ['title', 'author', 'content']
+        fields = ['title', 'author', 'content', 'group']
 
 
+@routes(('PUT', r'^publish/(?P<pk>\d+)/$', 'publish_post'))
 class PostResource(Resource):
     def prepare(self, data):
         if self.request.method == 'PUT':
@@ -75,19 +78,14 @@ class PostResource(Resource):
             })
         return post
 
-    # PUT /api/post/<pk>/ --OR-- PUT /api/post/<pk>/?publish=true/false
+    # PUT /api/post/<pk>/
     def update(self, pk):
-        publish = self.request.GET.get('publish', None)
         try:
             post = Post.objects.get(pk=pk)
         except Post.DoesNotExist:
             raise NotFound({
                 "errMsg": 'No Post Found!'
             })
-
-        if publish and publish == 'true':
-            post.publish_post()
-            return post
 
         form = PostForm(self.data)
 
@@ -99,8 +97,23 @@ class PostResource(Resource):
         post.title = form.cleaned_data['title']
         post.author = form.cleaned_data['author']
         post.content = form.cleaned_data['content']
-        post.save()
         post.update_post()
+        return post
+
+    # PUT /api/post/publish/<pk>/
+    def publish_post(self, pk):
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            raise NotFound({
+                "errMsg": 'No Post Found!'
+            })
+
+        if not post.published:
+            post.update_post()
+            post.publish_post()
+            return post
+
         return post
 
     # DELETE /api/post/<pk>/
