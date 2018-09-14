@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 from django.contrib import admin
-from models import User, Apikey
+from models import SocialGroup
 
 # Register your models here.
-admin.site.register(User)
-admin.site.register(Apikey)
+
+admin.site.register(SocialGroup)
